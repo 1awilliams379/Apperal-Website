@@ -1,0 +1,235 @@
+var shippo = require('shippo')('shippo_test_da4988d4a233f2f8bac4c27e1beb92c84c3a06ca');
+
+export function transactionCreation(shipment, token, account) {
+    return shippo.transaction.create({
+        "shipment": {
+            "address_to": {
+                "name": shipment.address_to.name,
+                "street1": shipment.address_to.street1,
+                "street2": shipment.address_to.street2,
+                "city": shipment.address_to.city,
+                "state": shipment.address_to.state,
+                "zip": shipment.address_to.zip,
+                "country": shipment.address_to.country,
+                "phone": shipment.address_to.phone,
+                "email": shipment.address_to.email
+            },
+            "address_from": {
+                "name": shipment.address_from.name,
+                "street1": shipment.address_from.street1,
+                "street2": shipment.address_from.street2,
+                "city": shipment.address_from.city,
+                "state": shipment.address_from.state,
+                "zip": shipment.address_from.zip,
+                "country": shipment.address_from.country,
+                "phone": shipment.address_from.phone,
+                "email": shipment.address_from.email
+            },
+            "parcels": shipment.parcels
+        },
+        "carrier_account": account,
+        "servicelevel_token": token,
+        "label_file_type": "PDF_4x6"
+    }, function (err, transaction) {
+        //console.log(err)
+        return transaction
+    });
+}
+
+export function retrieveCarriers() {
+    return shippo.carrieraccount.list()
+        .then((cars) => {
+            console.log("carriers", cars)
+            var carriers = ['dc57c73510674625a12c823ee8a15162', '65e500ec39da4a72a6cf923dce20815a', '42c870c4c458461d98160fa23063505d']
+            return carriers
+        })
+
+}
+
+export function addressVerification(shippingFirstName, shippingLastName, shippingStreet, shippingCity, shippingState, shippingCountry, zip, shippingLoginEmail, shippingPhone) {
+
+    return shippo.address.create({
+        "name": shippingFirstName + " " + shippingLastName,
+        "company": "",
+        "street1": shippingStreet,
+        "city": shippingCity,
+        "state": shippingState,
+        "zip": zip,
+        "country": shippingCountry,
+        "email": shippingLoginEmail,
+        "phone": shippingPhone,
+        "validate": true
+    }, function (err, address) {
+        //console.log(address)
+        if (err) {
+            return err
+        } else {
+            return address
+        }
+        //console.log(err)
+    });
+}
+
+export function parcelCreation(sku, weight, price) {
+    let w, l, h;
+    let splitSKU = sku.split('-')
+    let itemDesignNumber = splitSKU[0]
+    let itemType = splitSKU[1]
+    let itemSize = splitSKU[2]
+    let itemColor = splitSKU[3]
+    if (itemType === "01") {
+        l = 15
+        w = 12
+        h = 9
+    }
+    if (itemType === "02" || itemType === "03" || itemType === "04") {
+        l = 15
+        w = 12
+        h = 5
+    }
+    if (itemType === "05") {
+        l = 15
+        w = 11
+        h = 2
+    }
+    //console.log(l,h,w,weight,sku)
+
+    try {
+        return shippo.parcel.create({
+            "length": l,
+            "width": w,
+            "height": h,
+            "distance_unit": "in",
+            "weight": weight,
+            "mass_unit": "lb",
+            "extra": {
+                "price": price + 5,
+                "sku": sku
+            }
+        })
+    } catch (error) {
+        console.log(error)
+        return error
+    }
+
+}
+
+export function shipmentCreation(addressId, parcelIds, carriers, address, parcels) {
+    shippo.carrieraccount.list();
+    const fromAddy = {
+        "name": "RelentlessBTL",
+        "company": "Relentless BTL",
+        "street1": "2890 GA-212",
+        "city": "Conyers",
+        "state": "GA",
+        "zip": "30094",
+        "country": "US",
+        "phone": "+1 4045673793",
+        "email": "sales@relentlessbtl.com"
+    }
+    if (address.country !== "US") {
+        return getCustomsDeclaration(address, parcels)
+            .then((dec) => {
+                console.log("decccc", dec)
+                if (dec) {
+                    return shippo.shipment.create({
+                        "address_from": fromAddy,
+                        "address_return": fromAddy,
+                        "address_to": addressId,
+                        "parcels": parcelIds,
+                        "customs_declaration": dec,
+                       // "carrier_accounts": carriers,
+                        "async": true
+                    })
+                } else {
+                    console.log(dec.messege)
+                }
+            })
+    } else {
+        
+        return shippo.shipment.create({
+            "address_from": fromAddy,
+            "address_return": fromAddy,
+            "address_to": addressId,
+            "parcels": parcelIds,
+            //"carrier_accounts": carriers,
+            "async": true
+        })
+    }
+}
+
+async function getCustomsDeclaration(address, parcels) {
+    var items = []
+    for (var i in parcels) {
+
+        await shippo.customsitem.create({
+            "description": parcels[i].object_id,
+            "quantity": 1,
+            "net_weight": parcels[i].weight,
+            "mass_unit": "lb",
+            "value_amount": parcels[i].extra.price,
+            "sku_code": parcels[i].extra.sku,
+            "value_currency": "USD",
+            "tariff_number": "",
+            "origin_country": "US"
+        }, function (err, item) {
+            //console.log(err)
+            if (err) { return { "status": 500, "messege": err } } else {
+                items.push(item.object_id)
+            }
+        })
+    }
+    return createCustomsDeclaration(address, items)
+        .then((dec) => {
+            return dec
+        })
+
+}
+
+function createCustomsDeclaration(address, items) {
+    return shippo.customsdeclaration.create({
+        "contents_type": "MERCHANDISE",
+        "contents_explanation": "Purchase of Merchandise",
+        "non_delivery_option": "RETURN",
+        "certify": true,
+        "certify_signer": "Antonio Williams",
+        "items": items,
+    }, function (err, customsDeclaration) {
+        if (err) { return { "status": 500, "messege": err } } else {
+            return { "status": 200, "messege": customsDeclaration }
+        }
+    });
+}
+
+export function createUPS() {
+    // console.log(shippo.carrieraccount.list())
+    // console.log(shippo.carrieraccount.retrieve('65e500ec39da4a72a6cf923dce20815a'))
+    return shippo.carrieraccount.create({
+        "carrier": "ups",
+        "account_id": "relentlessbtl21", // UPS user ID
+        "parameters": {
+            "password": "LtbSseltneler21", // UPS password
+            "account_number": "7R326E"
+        },
+        "active": true
+    }, function (err, account) {
+        //return err
+        return account
+    });
+}
+
+export function createFedex() {
+    //console.log(shippo.carrieraccount.list())
+    return shippo.carrieraccount.create({
+            "carrier": "fedex",
+            "account_id": "510087160",
+            "parameters": { "meter": "119257097" },
+            "test": true,
+            "active": true
+        },
+        function (err, account) {
+            //return err
+            return account
+            console.log(err)
+        });
+}

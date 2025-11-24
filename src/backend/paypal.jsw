@@ -1,0 +1,44 @@
+import { fetch } from 'wix-fetch';
+
+export function accessToken() {
+
+    let url = "https://api-m.sandbox.paypal.com/v1/identity/generate-token"
+
+    return fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer A21AAKpEAyGjOCBN0JudiNh1hxMHnBCDeW9l3_BaKe_y4HaJtzfml6CJKE29OwTF9f_Oyo78JAgnDA16ZagxC_qMObcX-gpYg',
+            'Accept-Language': 'en_US'
+        }
+    }).then((httpResponse) => {
+
+        if (httpResponse.ok) {
+            return httpResponse.json();
+        } else {
+            console.log(httpResponse)
+        }
+    });
+}
+
+export function generateToken() {
+
+    let url = "https://api-m.sandbox.paypal.com/v1/oauth2/token"
+
+    return fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept-Language': 'en_US',
+            'Authorization': "Basic " + 'EA5ipoAiOzfwtJXUTQIC62z2pYQI_c1QRsijm5KrtbgrrKbbwXsah1iu_VGN-vcIUacHFmNV3UFDTbDm'
+        },
+        body: "grant_type=client_credentials"
+    }).then((httpResponse) => {
+
+        if (httpResponse.ok) {
+            return httpResponse.json();
+        } else {
+            console.log(httpResponse.json())
+        }
+    });
+}

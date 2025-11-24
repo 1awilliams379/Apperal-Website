@@ -1,0 +1,5 @@
+import fetch from 'wix-fetch';
+
+export function getOrder(id) {
+    let url = 'https://www.wixapis.com/stores/v2/orders/' + id[0].toString()
+}

@@ -1,0 +1,274 @@
+import Anvil from '@anvilco/anvil'
+import wixData from 'wix-data';
+const pdfApiKey = 'Jvrvk59PBte0EsHBYx8oJnHPSUthGKJi';
+const encodedToken = Buffer.from(pdfApiKey, 'ascii').toString('base64')
+const enc = `Basic ${encodedToken}`
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+//import { getDatabase } from "firebase/database";
+
+// const firebaseConfig = {
+//     apiKey: "AIzaSyDXuFouMhVCavQyzPWk-Al1xu7fSqgc8YQ",
+//     authDomain: "relentlessbtl.firebaseapp.com",
+//     projectId: "relentlessbtl",
+//     storageBucket: "relentlessbtl.appspot.com",
+//     messagingSenderId: "66156275759",
+//     appId: "1:66156275759:web:e995da5cf635aae937beda",
+//     measurementId: "G-ZXQYTJWH4H"
+// };
+
+// const app = initializeApp(firebaseConfig);
+//const analytics = getAnalytics(app);
+import { app } from "public/firebaseConfig";
+const storage = getStorage();
+//const database = getDatabase(app);
+
+let dollarStyle = Intl.NumberFormat("en-us", {
+    //localeMatcher: "best fit"
+    style: "currency",
+    currency: "USD",
+});
+
+export async function formReturn(oo, order, ptype, date, delivery) {
+
+    var bodyData = {
+        "title": order + " Dispatch Note",
+        "fontSize": 8,
+        "textColor": "#000000",
+        "data": {
+            "product1Sku0": "",
+            "product1Description1": "",
+            "product1Size2": "",
+            "product1Qty3": "",
+            "billingcity4": oo.billingPostalCode + " " + oo.billingCity + " " + oo.billingState,
+            "billingcountry5": oo.billingCountry,
+            "shippingname6": oo.shippingFirstName + " " + oo.shippingLastName,
+            "shippingstreet7": oo.shippingAddress1,
+            "shippingcity8": oo.shippingPostalCode + " " + oo.shippingCity + " " + oo.shippingState,
+            "shippingcountry9": oo.shippingCountry,
+            "billingstreet10": oo.billingAddress1,
+            "billingname11": oo.billingFirstName + " " + oo.billingLastName,
+            "orderdate12": date,
+            "ordernumber13": order,
+            "paymenttype14": ptype,
+            "currency15": "USD",
+            "deliveryoption16": delivery,
+            "product1Up17": "",
+            "product1Tax18": "0.00",
+            "product1Fp19": "",
+            "totalup20": "",
+            "totaltax21": oo.tax.toFixed(2),
+            "totalfp22": oo.total.toFixed(2),
+            "product2Sku0": "",
+            "product2Description1": "",
+            "product2Size2": "",
+            "product2Qty3": "",
+            "product2Up17": "",
+            "product2Tax18": "",
+            "product2Fp19": "",
+            "SHIPPINGUP": oo.shipping.toFixed(2),
+            "SHIPPINGTAX": "0.00",
+            "SHIPPINGFP": oo.shipping.toFixed(2),
+            "SHIPPING": "SHIPPING",
+            "product3Sku0": "",
+            "product3Description1": "",
+            "product3Size2": "",
+            "product3Qty3": "",
+            "product3Up17": "",
+            "product3Tax18": "",
+            "product3Fp19": "",
+            "product4Sku0": "",
+            "product4Description1": "",
+            "product4Size2": "",
+            "product4Up17": "",
+            "product4Tax18": "",
+            "product4Fp19": "",
+            "product5Sku0": "",
+            "product5Description1": "",
+            "product5Size2": "",
+            "product5Qty3": "",
+            "product5Up17": "",
+            "product5Tax18": "",
+            "product5Fp19": "",
+            "product6Sku0": "",
+            "product6Description1": "",
+            "product6Size2": "",
+            "product6Qty3": "",
+            "product6Up17": "",
+            "product6Tax18": "",
+            "product6Fp19": "",
+            "product7Sku0": "",
+            "product7Description1": "",
+            "product7Size2": "",
+            "product7Qty3": "",
+            "product7Up17": "",
+            "product7Tax18": "",
+            "product7Fp19": "",
+            "product8Sku0": "",
+            "product8Description1": "",
+            "product8Size2": "",
+            "product8Qty3": "",
+            "product8Up17": "",
+            "product8Tax18": "",
+            "product8Fp19": "",
+            "product9Sku0": "",
+            "product9Description1": "",
+            "product9Size2": "",
+            "product9Qty3": "",
+            "product9Up17": "",
+            "product9Tax18": "",
+            "product9Fp19": "",
+            "product10Sku0": "",
+            "product10Description1": "",
+            "product10Size2": "",
+            "product10Qty3": "",
+            "product10Up17": "",
+            "product10Tax18": "",
+            "product10Fp19": "",
+            "product11Sku0": "",
+            "product11Description1": "",
+            "product11Size2": "",
+            "product11Qty3": "",
+            "product11Up17": "",
+            "product11Tax18": "",
+            "product11Fp19": "",
+            "product12Sku0": "",
+            "product12Description1": "",
+            "product12Size2": "",
+            "product12Qty3": "",
+            "product12Up17": "",
+            "product12Tax18": "",
+            "product12Fp19": "",
+            "product13Sku0": "",
+            "product13Description1": "",
+            "product13Size2": "",
+            "product13Qty3": "",
+            "product13Up17": "",
+            "product13Tax18": "",
+            "product13Fp19": "",
+            "product14Sku0": "",
+            "product14Description1": "",
+            "product14Size2": "",
+            "product14Qty3": "",
+            "product14Up17": "",
+            "product14Tax18": "",
+            "product14Fp19": "",
+            "product15Sku0": "",
+            "product15Description1": "",
+            "product15Size2": "",
+            "product15Qty3": "",
+            "product15Up17": "",
+            "product15Tax18": "",
+            "product15Fp19": "",
+            "product16Sku0": "",
+            "product16Description1": "",
+            "product16Size2": "",
+            "product16Qty3": "",
+            "product16Up17": "",
+            "product16Tax18": "",
+            "product16Fp19": "",
+            "product17Sku0": "",
+            "product17Description1": "",
+            "product17Size2": "",
+            "product17Qty3": "",
+            "product17Up17": "",
+            "product17Tax18": "",
+            "product17Fp19": "",
+            "product18Sku0": "",
+            "product18Description1": "",
+            "product18Size2": "",
+            "product18Qty3": "",
+            "product18Up17": "",
+            "product18Tax18": "",
+            "product18Fp19": "",
+            "product19Sku0": "",
+            "product19Description1": "",
+            "product19Size2": "",
+            "product19Qty3": "",
+            "product19Up17": "",
+            "product19Tax18": "",
+            "product19Fp19": "",
+            "product20Sku0": "",
+            "product20Description1": "",
+            "product20Size2": "",
+            "product20Qty3": "",
+            "product20Up17": "",
+            "product20Tax18": "",
+            "product20Fp19": ""
+        }
+    }
+    var totapUP = 0
+    for (var i in oo.lineItems) {
+        if (i === "0") {
+            bodyData.data.product1Sku0 = oo.lineItems[i].sku
+            bodyData.data.product1Description1 = oo.lineItems[i].name
+            bodyData.data.product1Qty3 = "1"
+            bodyData.data.product1Up17 = oo.lineItems[i].priceData.price.toFixed(2)
+            bodyData.data.product1Fp19 = oo.lineItems[i].priceData.price.toFixed(2)
+            bodyData.data.product1Size2 = oo.lineItems[i].options.selection
+            totapUP = totapUP + oo.lineItems[i].priceData.price
+        }
+        if (i === "1") {
+            bodyData.data.product2Sku0 = oo.lineItems[i].sku
+            bodyData.data.product2Description1 = oo.lineItems[i].name
+            bodyData.data.product2Qty3 = "1"
+            bodyData.data.product2Up17 = oo.lineItems[i].priceData.price.toFixed(2)
+            bodyData.data.product2Fp19 = oo.lineItems[i].priceData.price.toFixed(2)
+            bodyData.data.product2Size2 = oo.lineItems[i].options.selection
+            bodyData.data.product2Tax18 = "0.00"
+            totapUP = totapUP + oo.lineItems[i].priceData.price
+        }
+        if (i === "2") {
+            bodyData.data.product3Sku0 = oo.lineItems[i].sku
+            bodyData.data.product3Description1 = oo.lineItems[i].name
+            bodyData.data.product3Qty3 = "1"
+            bodyData.data.product3Up17 = oo.lineItems[i].priceData.price.toFixed(2)
+            bodyData.data.product3Fp19 = oo.lineItems[i].priceData.price.toFixed(2)
+            bodyData.data.product3Size2 = oo.lineItems[i].options.selection
+            bodyData.data.product3Tax18 = "0.00"
+            totapUP = totapUP + oo.lineItems[i].priceData.price
+        }
+    }
+    var totalUP = totapUP
+    bodyData.data.totalup20 = totalUP.toFixed(2)
+
+    const anvilClient = new Anvil({ apiKey: pdfApiKey })
+    const { statusCode, data } = await anvilClient.fillPDF("hVEmusoZJlzftNkRwC2D", bodyData)
+    console.log(statusCode, data)
+    let base64 = Buffer.from(data, 'ascii').toString('base64')
+    const dispatchNotesRef = ref(storage, 'dispatchnotes/' + order + "-DispatchNote" + '.pdf');
+
+    return uploadBytes(dispatchNotesRef, data).then(async (snapshot) => {
+        console.log('Dispatch Note Success!', snapshot);
+        await storeInDatabase(oo, dispatchNotesRef)
+        return base64
+    })
+
+}
+
+function storeInDatabase(order, refe) {
+    getDownloadURL(ref(storage, refe))
+        .then((url) => {
+            var invoice = {
+                orderNumber: order.orderNumber.toString(),
+                customer: {
+                    stripeId: order.stripeId,
+                    memberId: order.buyerId
+                },
+                url: url
+            }
+            console.log('invoicing', invoice)
+            wixData.insert("Invoices", invoice)
+                .then((res) => {
+                    console.log('Invoiced', res)
+                })
+                .catch((err) => {
+                    console.log("invoice err", err)
+                })
+        })
+        .catch((error) => {
+            console.log("fb err", error)
+        });
+
+}

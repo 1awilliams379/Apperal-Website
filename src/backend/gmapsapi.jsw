@@ -1,0 +1,40 @@
+export function multiply(factor1, factor2) {
+    return factor1 * factor2;
+}
+
+import { fetch } from 'wix-fetch';
+const key = "AIzaSyDXuFouMhVCavQyzPWk-Al1xu7fSqgc8YQ";
+
+const apipart1 = "https://maps.googleapis.com/maps/api/place/autocomplete/json?&";
+const apipart2 = "&key=";
+const apiCountry = "&components=country:"
+const apiTypes = "&types="
+
+export function autocomplete(string, country, types) {
+    let input = "input=" + string;
+    let url = apipart1 + input + apiCountry + country + apiTypes + types + apipart2 + key;
+    return fetch(url, { method: 'get' }).then((httpResponse) => {
+
+        if (httpResponse.ok) {
+            return httpResponse.json();
+        }
+    });
+}
+
+export function placeDetails(string) {
+    let input = "place_id=" + string;
+    const p1 = "https://maps.googleapis.com/maps/api/place/details/json?&"
+    const apipart2 = "&key=";
+    const apiField = "&fields=";
+    let addressComponets = "address_component";
+    let url = p1 + input + apiField + addressComponets + apipart2 + key;
+    
+    
+    return fetch(url, { method: 'get' }).then((httpResponse) => {
+
+        if (httpResponse.ok) {
+            return httpResponse.json();
+        }
+    });
+
+}

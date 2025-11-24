@@ -1,0 +1,186 @@
+import sgMail from "@sendgrid/mail";
+import wixSecretsBackend from 'wix-secrets-backend';
+const fs = require("fs");
+const fetch = require("node-fetch-commonjs")
+var FileReader = require('filereader')
+import wixPayBackend from 'wix-pay-backend';
+
+export async function sendEmail(recipient, subject, body, attatch) {
+    const sendGridSecret = JSON.parse(await wixSecretsBackend.getSecret('sendGridSecret'));
+    const key = sendGridSecret.key;
+    const senderEmail = sendGridSecret.senderEmail;
+
+    // let pathToAttachment = attatch;
+    // let attachment = fs.readFileSync(pathToAttachment).toString("base64");
+
+    sgMail.setApiKey(key);
+
+    const msg = {
+        from: senderEmail,
+        to: recipient,
+        subject: subject + " Dispatch Details",
+        text: body,
+        attachments: [{
+            content: attatch,
+            filename: 'Relentless' + subject + " Invoice.pdf",
+            type: "application/pdf",
+            disposition: "attachment"
+        }]
+    };
+
+    try {
+        return await sgMail.send(msg);
+    } catch (error) {
+        console.error('Error sending the email: ' + error.message);
+        return false;
+    }
+}
+
+export async function sendOrderConfirmationToCustomer(oo, oid, tn, name, invoiceURL, pType, locale, currencyCode) {
+    const sendGridSecret = JSON.parse(await wixSecretsBackend.getSecret('sendGridSecret'));
+    const key = sendGridSecret.key;
+    const senderEmail = sendGridSecret.senderEmail;
+
+    let dollarStyle = Intl.NumberFormat(locale, {
+        //localeMatcher: "best fit"
+        style: "currency",
+        currency: currencyCode,
+    });
+    var amount = []
+
+    await wixPayBackend.currencies.currencyConverter.convertAmounts({
+            "amounts": [parseFloat(oo.shipping), parseFloat(oo.tax), parseFloat(oo.total)],
+            "from": "USD",
+            "to": currencyCode
+        })
+        .then((amounts) => {
+            amount = amounts.amounts
+        })
+
+    console.log(amount)
+
+    console.log(invoiceURL)
+    sgMail.setApiKey(key);
+
+    let subject = "Confirmation of your Relentless order #" + oid
+
+    const msg = {
+        from: senderEmail,
+        to: oo.buyerEmail,
+        subject: subject,
+        template_id: "d-2a38e4af036345c4a2149acfabc8dd97",
+        dynamic_template_data: {
+            "orderNumber": oid,
+            "trackingNumber": tn,
+            "linkToTracking": oo.fufillments.trackingInfo.trackingLink,
+            "client": name,
+            "item1Price": "",
+            "product1Src": "",
+            "item1Name": "",
+            "item1SKU": "",
+            "item1Size": "",
+            "item1Color": "",
+            "item2Price": "",
+            "product2Src": "",
+            "item2Name": "",
+            "item2SKU": "",
+            "item2Size": "",
+            "item2Color": "",
+            "ORDER2STATUS": "",
+            "placed2": "",
+            "PRICE2": "",
+            "item3Price": "",
+            "product3Src": "",
+            "item3Name": "",
+            "item3SKU": "",
+            "item3Size": "",
+            "item3Color": "",
+            "ORDER3STATUS": "",
+            "placed3": "",
+            "PRICE3": "",
+            "shippingName": oo.shippingFirstName + " " + oo.shippingLastName,
+            "shippingStreet": oo.shippingAddress1 + " " + oo.shippingAddress2,
+            "shippingCityState": oo.shippingCity + ", " + oo.shippingState,
+            "shippingCountry": oo.shippingCountry,
+            "shippingPostalCode": oo.shippingPostalCode,
+            "shippingPhoneNumber": "Phone Number: " + oo.shippingPhone,
+            "shippingMethod": oo.deliveryMethod,
+            "billingName": oo.billingFirstName + " " + oo.billingLastName,
+            "nameOnCard": oo.noc,
+            "cardType": pType,
+            "subtotalPrice": "",
+            "shippingPrice": dollarStyle.format(amount[0]),
+            "taxPrice": dollarStyle.format(amount[1]),
+            "totalPrice": dollarStyle.format(amount[2]),
+        },
+        //text: body,
+        attachments: [{
+            content: invoiceURL,
+            filename: "Relentless Order #" + oid + " Invoice.pdf",
+            type: "application/pdf",
+            dispooosition: "attachment"
+        }, ]
+    };
+
+    var subP = 0
+    for (var i in oo.lineItems) {
+        if (i === "0") {
+            var color = oo.lineItems[i].sku.substr(oo.lineItems[i].sku.length - 3)
+            msg.dynamic_template_data.item1Color = color
+            msg.dynamic_template_data.item1Name = oo.lineItems[i].name
+            msg.dynamic_template_data.item1SKU = oo.lineItems[i].sku
+            msg.dynamic_template_data.item1Size = oo.lineItems[i].options.selection
+            wixPayBackend.currencies.currencyConverter.convertAmounts({
+                    "amounts": [parseFloat(oo.lineItems[i].priceData.price), parseFloat(subP)],
+                    "from": "USD",
+                    "to": currencyCode
+                })
+                .then((amounts) => {
+                    msg.dynamic_template_data.item1Price = dollarStyle.format(amounts.amounts[0])
+                    msg.dynamic_template_data.subtotalPrice = dollarStyle.format(amounts.amounts[1])
+                })
+            msg.dynamic_template_data.product1Src = await getFullImageURL(oo.lineItems[i].mediaItem.src)
+            subP = subP + oo.lineItems[i].priceData.price
+        }
+        if (i === "1") {
+            var color = oo.lineItems[i].sku.substr(oo.lineItems[i].sku.length - 3)
+            msg.dynamic_template_data.item2Color = color
+            msg.dynamic_template_data.item2Name = oo.lineItems[i].name
+            msg.dynamic_template_data.item2SKU = oo.lineItems[i].sku
+            msg.dynamic_template_data.item2Size = oo.lineItems[i].options.selection
+            wixPayBackend.currencies.currencyConverter.convertAmounts({
+                    "amounts": [parseFloat(oo.lineItems[i].priceData.price), parseFloat(subP)],
+                    "from": "USD",
+                    "to": currencyCode
+                })
+                .then((amounts) => {
+                    msg.dynamic_template_data.item2Price = dollarStyle.format(amounts.amounts[0])
+                    msg.dynamic_template_data.subtotalPrice = dollarStyle.format(amounts.amounts[1])
+                })
+            msg.dynamic_template_data.product1Src = await getFullImageURL(oo.lineItems[i].mediaItem.src)
+            subP = subP + oo.lineItems[i].priceData.price
+        }
+    }
+
+    try {
+        return await sgMail.send(msg);
+    } catch (error) {
+        console.error('Error sending the email: ' + error);
+        return false;
+    }
+}
+
+export function getFullImageURL(imageSRC) {
+    let strReturnImage = "";
+    if (imageSRC.startsWith("wix:image:")) {
+        let wixImageURL = "";
+        wixImageURL = "https://static.wixstatic.com/media/";
+        let wixLocalURL = "";
+        wixLocalURL = imageSRC.replace('wix:image://v1/', '');
+        wixLocalURL = wixLocalURL.substr(0, wixLocalURL.lastIndexOf('/'));
+        strReturnImage = wixImageURL + wixLocalURL;
+    } else {
+        strReturnImage = imageSRC;
+    }
+    return strReturnImage;
+}

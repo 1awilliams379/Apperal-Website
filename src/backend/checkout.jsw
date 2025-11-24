@@ -1,0 +1,331 @@
+import { fetch } from 'wix-fetch';
+import wixStoresBackend from 'wix-stores-backend';
+import Stripe from 'stripe';
+const stripe = new Stripe('sk_test_51KFC0LC5OEOblDObQtllodE5ZMclJiJP5iq2C4bL6ONtYNffyGQKU0qgVAGaiCptE0XqGhI9gqJbETr4ZBoDLg7g00mHTUTnWe');
+const pdfApiKey = 'Jvrvk59PBte0EsHBYx8oJnHPSUthGKJi';
+const encodedToken = Buffer.from(pdfApiKey, 'ascii').toString('base64')
+const enc = `Basic ${encodedToken}`
+import wixData from 'wix-data';
+
+const apiKey = "sk_test_51KFC0LC5OEOblDObQtllodE5ZMclJiJP5iq2C4bL6ONtYNffyGQKU0qgVAGaiCptE0XqGhI9gqJbETr4ZBoDLg7g00mHTUTnWe"; // (secret key)
+// The key in use in this file is the private API key.
+// The private key is used to perform all actions and
+// should be kept confidential and guarded and
+// therefore is only to be used in backend files.
+////////////////////////////////////////////////
+
+export async function charge(token, co) {
+
+    const cart = co;
+    const response = await fetch("https://api.stripe.com/v1/charges", {
+        method: 'post',
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": "Bearer " + apiKey
+        },
+        body: encodeBody(token, cart)
+    });
+    if (response.status >= 200 && response.status < 300) {
+        // transaction successful - get charge ID
+        const ret = await response.json();
+        return { "chargeId": ret };
+        //return { "chargeId": ret };
+    }
+    // transaction failed - return error type
+    let res = await response.json();
+    let err = res.error.type;
+    return { "error": res };
+}
+
+export async function chargePI(method, co) {
+
+    const cart = co;
+    try {
+        return await stripe.paymentIntents.create({
+                amount: co.amount,
+                currency: 'usd',
+                customer: method.customer,
+                payment_method: method.id,
+                off_session: false,
+                confirm: true,
+            })
+            .then((res) => {
+                return res
+            })
+    } catch (err) {
+        // Error code will be authentication_required if authentication is needed
+        console.log('Error code is: ', err.code);
+        const paymentIntentRetrieved = await stripe.paymentIntents.retrieve(err.raw.payment_intent.id);
+        console.log('PI retrieved: ', paymentIntentRetrieved.id);
+        return err
+    }
+}
+
+function encodeBody(token, cart) {
+    let encoded = "";
+    for (let [k, v] of Object.entries(cart)) {
+        encoded = encoded.concat(k, "=", encodeURI(v), "&");
+    }
+    encoded = encoded.concat("source=", encodeURI(token));
+    return encoded;
+}
+
+export function createOrder(oo, transId, cId, shippingCountry2Letter, billingCountry2Letter) {
+
+    var lOrder;
+    var ullOrder
+
+    if (oo.coupon) {
+        ullOrder = {
+            "buyerLanguage": oo.language,
+            "buyerInfo": {
+                //"email": oo.buyerEmail,
+                "id": oo.buyerId,
+                "identityType": oo.buyerIT
+            },
+            "cartId": oo.cartId,
+            "currency": oo.currency,
+            "weightUnit": "LB",
+            "billingInfo": {
+                "address": {
+                    "formatted": oo.billingAddress1 + ", " + oo.billingAddress2 + ", " + oo.billingCity + ", " + oo.billingState + " " + oo.billingPostalCode + ", " + oo.billingCountry,
+                    "city": oo.billingCity,
+                    "country": billingCountry2Letter,
+                    "addressLine": oo.billingAddress1,
+                    "addressLine2": oo.billingAddress2,
+                    "postalCode": oo.billingPostalCode,
+                    "subdivision": oo.billingState
+                },
+                "lastName": oo.billingLastName,
+                "firstName": oo.billingFirstName,
+                "email": oo.billingEmail,
+                "phone": oo.billingPhone,
+                "paymentMethod": oo.paymentMethod,
+                "paymentGatewayTransactionId": transId,
+                "paymentProviderTransactionId": cId
+            },
+            "totals": {
+                "subtotal": oo.subtotal,
+                "total": oo.total,
+                "shipping": oo.shipping,
+                "discount": oo.discount,
+                "tax": oo.tax
+            },
+            "channelInfo": {
+                "type": "WEB"
+            },
+            "paymentStatus": "PAID",
+            "shippingInfo": {
+                "deliverByDate": "", //"2019-06-23T13:58:47.871Z",
+                "deliveryOption": "", //"Free Shipping",
+                "shippingRegion": "", //"Domestic",
+                "estimatedDeliveryTime": "", //"4:30pm",
+                "shipmentDetails": {
+                    "address": {
+                        "formatted": oo.shippingAddress1 + ", " + oo.shippingAddress2 + ", " + oo.shippingCity + ", " + oo.shippingState + " " + oo.shippingPostalCode + ", " + oo.shippingCountry,
+                        "city": oo.shippingCity,
+                        "country": shippingCountry2Letter,
+                        "addressLine": oo.shippingAddress1,
+                        "addressLine2": oo.shippingAddress2,
+                        "postalCode": oo.shippingPostalCode,
+                        "subdivision": oo.shippingState
+                    },
+                    "lastName": oo.shippingLastName,
+                    "firstName": oo.shippingFirstName,
+                    "email": oo.shippingEmail,
+                    "phone": oo.shippingPhone,
+                    "priceData": {
+                        "price": oo.shipping,
+                        "taxIncludedInPrice": true
+                    }
+                }
+            },
+            "lineItems": oo.lineItems,
+            //"fulfillments": oo.fufillments,
+            "discount": {
+                "appliedCoupon": {
+                    "code": oo.coupon.code,
+                    "couponId": oo.coupon.couponId,
+                    "name": oo.coupon.name
+                }
+            }
+        }
+        return wixStoresBackend.createOrder(ullOrder)
+            .then(async (ord) => {
+                await updateOrders(oo, ord.number)
+                return ord
+            })
+            .catch((err) => {
+                console.log(err)
+            })
+    } else {
+        lOrder = {
+            "buyerLanguage": oo.language,
+            "buyerInfo": {
+                //"email": oo.buyerEmail,
+                "id": oo.buyerId,
+                "identityType": oo.buyerIT
+            },
+            "cartId": oo.cartId,
+            "currency": oo.currency,
+            "weightUnit": "LB",
+            "billingInfo": {
+                "address": {
+                    "formatted": oo.billingAddress1 + ", " + oo.billingAddress2 + ", " + oo.billingCity + ", " + oo.billingState + " " + oo.billingPostalCode + ", " + oo.billingCountry,
+                    "city": oo.billingCity,
+                    "country": billingCountry2Letter,
+                    "addressLine": oo.billingAddress1,
+                    "addressLine2": oo.billingAddress2,
+                    "postalCode": oo.billingPostalCode,
+                    "subdivision": oo.billingState
+                },
+                "lastName": oo.billingLastName,
+                "firstName": oo.billingFirstName,
+                "email": oo.billingEmail,
+                "phone": oo.billingPhone,
+                "paymentMethod": oo.paymentMethod,
+                "paymentGatewayTransactionId": transId,
+                "paymentProviderTransactionId": cId
+            },
+            "totals": {
+                "subtotal": oo.subtotal,
+                "total": oo.total,
+                "shipping": oo.shipping,
+                "discount": oo.discount,
+                "tax": oo.tax
+            },
+            "channelInfo": {
+                "type": "WEB"
+            },
+            "paymentStatus": "PAID",
+            "shippingInfo": {
+                "deliverByDate": "", //"2019-06-23T13:58:47.871Z",
+                "deliveryOption": oo.deliveryOption, //"Free Shipping",
+                "shippingRegion": "", //"Domestic",
+                "estimatedDeliveryTime": "", //"4:30pm",
+                "shipmentDetails": {
+                    "address": {
+                        "formatted": oo.shippingAddress1 + ", " + oo.shippingAddress2 + ", " + oo.shippingCity + ", " + oo.shippingState + " " + oo.shippingPostalCode + ", " + oo.shippingCountry,
+                        "city": oo.shippingCity,
+                        "country": shippingCountry2Letter,
+                        "addressLine": oo.shippingAddress1,
+                        "addressLine2": oo.shippingAddress2,
+                        "postalCode": oo.shippingPostalCode,
+                        "subdivision": oo.shippingState
+                    },
+                    "lastName": oo.shippingLastName,
+                    "firstName": oo.shippingFirstName,
+                    "email": oo.shippingEmail,
+                    "phone": oo.shippingPhone,
+                    "priceData": {
+                        "price": oo.shipping,
+                        "taxIncludedInPrice": true
+                    }
+                }
+            },
+            "lineItems": oo.lineItems,
+            //"fulfillments": oo.fufillments
+
+            // [{
+            //     "customTextFields": [{
+            //         "title": "Notes for delivery",
+            //         "value": "Please leave at front door"
+            //     }],
+            //     "productId": "3fb6a3c8-988b-8755-04bd-5c59ae0b18ea",
+            //     "lineItemType": "PHYSICAL",
+            //     "mediaItem": {
+            //         "altText": "This is a description of the image",
+            //         "src": "wix:image://v1/689fa9...ccdc8a.jpg/file.jpg#originWidth=5760&originHeight=3840"
+            //     },
+            //     "name": "my product's name",
+            //     "options": [{
+            //         "option": "Size",
+            //         "selection": "Medium"
+            //     }],
+            //     "quantity": 1,
+            //     "sku": "36523641234523",
+            //     "weight": 1.42,
+            //     "translatedName": "Nombre traducido",
+            //     "discount": 0,
+            //     "tax": 5,
+            //     "priceData": {
+            //         "price": 5,
+            //         "taxIncludedInPrice": true
+            //     }
+            // }]
+            // ,
+            // "customField": {
+            //     "title": "Notes for delivery",
+            //     "translatedTitle": "Notas de entrega",
+            //     "value": "Please call when outside"
+            // },
+        }
+        console.log(lOrder)
+        return wixStoresBackend.createOrder(lOrder)
+            .then(async (ord) => {
+                await updateOrders(oo, ord.number)
+                return ord
+            })
+            .catch((err) => {
+                console.log("create order err",err)
+            })
+    }
+
+}
+
+export function getProductVariants(productId, options) {
+    return wixStoresBackend.getProductVariants(productId, options)
+        .then((varients) => {
+            //console.error("var " + varients)
+            return varients
+        })
+        .catch(error => {
+            console.error("err " + error);
+            return error
+        })
+}
+
+export function decrementInventory(decrementInfo) {
+    return wixStoresBackend.decrementInventory(decrementInfo)
+        .then((varients) => {
+            return varients
+        })
+        .catch(error => {
+
+            console.error(error);
+        })
+}
+
+function updateOrders(order, onum) {
+    console.log("orduppingnow")
+    order.orderNumber = onum.toString()
+    return wixData.get("Members", order.buyerId)
+        .then((memberDetails) => {
+            order.stripeCustomerId = memberDetails.stripeId
+            wixData.insert("Orders", order)
+                .then((res) => {
+                    updateMemberOrders(order, onum, res._id)
+                })
+                .catch((err) => {
+                    console.log(err)
+                    return err
+                })
+        })
+        .catch((err) => {
+            console.log(err)
+            
+        })
+}
+
+export function updateMemberOrders(order, onum, oid) {
+    console.log("memuppingnow")
+    // var ordersarr = []
+
+    wixData.insertReference("Members", "orders", order.buyerId, oid)
+        .then((res) => {
+            console.log("update success", res)
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+}

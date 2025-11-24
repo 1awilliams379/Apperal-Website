@@ -1,0 +1,46 @@
+import { google } from 'googleapis';
+import { getSecret } from 'wix-secrets-backend';
+import crypto from 'crypto'
+
+export async function getAuthUrl() {
+
+    //retrieve the client secret from the Secret Manager  
+    const googleClientSecret = await getSecret('clientSecret');
+
+    const googleConfig = {
+        clientId: '66156275759-djh26r6vernmqh348e47qvlubuo1ishs.apps.googleusercontent.com',
+        clientSecret: googleClientSecret,
+        redirect: 'https://relentlessbtl.editorx.io/my-site/_functions/getAuth'
+    };
+
+    // create a connection to google's authentication services
+    const authConnection = new google.auth.OAuth2(
+        googleConfig.clientId,
+        googleConfig.clientSecret,
+        googleConfig.redirect
+    );
+
+    const scope = [
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/userinfo.profile'
+    ];
+
+    // generate a random state variable 
+    const state = crypto.randomBytes(16).toString('hex')
+
+    try {
+        // request an authorization code URL 
+        const authUrl = authConnection.generateAuthUrl({
+            access_type: 'offline', // 'online' (default) or 'offline' (gets refresh_token)
+            prompt: 'consent',
+            scope: scope,
+            state: state
+        })
+        return { state, authUrl };
+    }
+    catch(error) {
+        console.log(error);
+    }
+
+    
+}

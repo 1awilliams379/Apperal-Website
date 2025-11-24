@@ -1,0 +1,745 @@
+import wixMembers from 'wix-members-backend';
+import { fetch } from 'wix-fetch';
+import wixData from 'wix-data';
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
+import { /* getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,*/ updateEmail, updatePassword } from 'firebase/auth'
+import { getAuth } from 'firebase-admin/auth'
+//import { app } from "public/firebaseConfig";
+import { initializeApp } from "firebase/app";
+const firebaseConfig = {
+    apiKey: "AIzaSyDXuFouMhVCavQyzPWk-Al1xu7fSqgc8YQ",
+    authDomain: "relentlessbtl.firebaseapp.com",
+    databaseURL: "https://relentlessbtl-default-rtdb.firebaseio.com",
+    projectId: "relentlessbtl",
+    storageBucket: "relentlessbtl.appspot.com",
+    messagingSenderId: "66156275759",
+    appId: "1:66156275759:web:e995da5cf635aae937beda",
+    measurementId: "G-ZXQYTJWH4H"
+};
+
+const app = initializeApp(firebaseConfig);
+
+const admin = require("firebase-admin");
+var serviceAccount = require("backend/firebase-service-account.json");
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    databaseURL: "https://relentlessbtl-default-rtdb.firebaseio.com"
+});
+export const firebaseAuth = getAuth();
+//export const googleProvider = new firebase.auth.GoogleAuthProvider();
+import Stripe from 'stripe';
+const stripe = new Stripe('sk_test_51KFC0LC5OEOblDObQtllodE5ZMclJiJP5iq2C4bL6ONtYNffyGQKU0qgVAGaiCptE0XqGhI9gqJbETr4ZBoDLg7g00mHTUTnWe');
+
+export function checkIfUserExists(email) {
+    wixData.query("Members")
+        .eq("email", email)
+        .find()
+        .then((results) => {
+            if (results.items.length > 0) {
+                return true
+            } else {
+                return false
+            }
+        })
+}
+
+export function getWixCreds(auth, wixoptions) {
+
+    let email = getCustomerEmail()
+    let pw = getCustomerPassword()
+
+    return wixMembers.authentication.register(email, pw, wixoptions)
+        .then(async (res) => {
+            return encryptPass(pw)
+                .then((wixAuth) => {
+                    return stripeCustomerCreation(res.member.contactId)
+                        .then(async (stripeId) => {
+                            const loginResult = await getLoginToken(email, pw);
+                            return {
+                                wix: res,
+                                stripeId: stripeId,
+                                wixAuth: wixAuth.messege,
+                                wixEmail: email,
+                                login: loginResult
+                            }
+
+                        })
+                        .catch((error) => {
+                            console.log(error)
+                        })
+                })
+                .catch((error) => {
+                    console.log(error)
+                })
+        })
+        .catch((error) => {
+            console.log(error)
+        })
+
+}
+
+function getCustomerEmail() {
+    let head = Math.random().toString(20).substr(2, 15)
+    let email = head + "@vucciocustomer.com"
+    return email
+}
+
+function getCustomerPassword() {
+    let pw = Math.random().toString(30).substr(2, 25)
+    return pw
+}
+
+async function stripeCustomerCreation(member) {
+    return await createStripeCustomer(member)
+        .then((res) => {
+            console.log(res)
+            console.log(res.id)
+            return res.id
+        })
+}
+
+export async function createStripeCustomer(member) {
+    return await stripe.customers.create({
+            description: member,
+        })
+        .then(async (customer) => {
+            //console.log(customer)
+            return await customer
+        })
+        .catch((error) => {
+            console.log(error)
+        })
+}
+
+export function firebaseRegistration(email, pw, uid) {
+    return createUser(email, pw, uid)
+        .then((res) => {
+            return res
+        })
+}
+
+// export function firebaseLogin(email, pw) {
+//     getAuth()
+//   .createCustomToken(uid)
+//   .then((customToken) => {
+//     // Send token back to client
+//   })
+//   .catch((error) => {
+//     console.log('Error creating custom token:', error);
+//   });
+// return signInWithEmailAndPassword(firebaseAuth, email, pw)
+//     .then((userCredential) => {
+//         console.log(userCredential)
+//         return true
+//         // ...
+//     })
+//     .catch((error) => {
+//         const errorCode = error.code;
+//         const errorMessage = error.message;
+//         return Error(errorMessage)
+//     });
+// }
+
+// checkAuth() checks if there's firebase user active in session
+export function checkAuth() {
+    // we use Promise here to wait for onAuthStateChanged return a value
+    return new Promise(resolve => {
+        firebaseAuth.onAuthStateChanged(function (user) {
+            // if user returned isn't null we will resolve this object to the function above
+            if (user) {
+                // User is signed in.
+                // Here we return the firebase.user object back to its caller
+                // which contains more about it in the firebase docs link above
+                resolve(user);
+            }
+            // resolve null if user is null and it's handled a level above
+            resolve(null);
+        })
+    })
+}
+
+export function createUser(email, password, uid) {
+    // Again we wrap the firebase function call inside a Promise to
+    // resolve the result back to where we called this
+    return getAuth().createUser({
+            email: email,
+            emailVerified: true,
+            uid: uid,
+            password: password,
+            disabled: false,
+        })
+        .then((userRecord) => {
+            // See the UserRecord reference doc for the contents of userRecord.
+            console.log('Successfully created new user:', userRecord);
+            return getAuth()
+                .createCustomToken(uid)
+                .then((customToken) => {
+                    return customToken
+                })
+                .catch((error) => {
+                    console.log('Error creating custom token:', error);
+                });
+        })
+        .catch((error) => {
+            console.log('Error creating new user:', error);
+            var errorCode = error.code;
+            var errorMessage = error.message;
+            //console.log("Error: " + errorCode + ", " + errorMessage);
+            return { "code": errorCode, "message": errorMessage }
+        });
+    // return createUserWithEmailAndPassword(firebaseAuth, email, password)
+    //     .then(() => {
+    //         // here we resolve 200 for a success sign up
+    //         return (200);
+    //     })
+    //     .catch((error) => {
+    //         // Handle Errors here.
+    //         var errorCode = error.code;
+    //         var errorMessage = error.message;
+    //         //console.log("Error: " + errorCode + ", " + errorMessage);
+    //         return { "code": errorCode, "message": errorMessage }
+    //     })
+}
+
+export async function getLoginToken(email, password) {
+
+    let sessionToken;
+
+    try {
+        sessionToken = await wixMembers.authentication.login(email, password);
+
+        // If the promise resolves, the member is authenticated and can be logged in
+        return {
+            sessionToken: sessionToken,
+            approved: true
+        };
+    } catch (error) {
+        // If the promise is rejected, the member is not authenticated
+        // and cannot be logged in
+        console.error(error);
+        return {
+            approved: false,
+            error: error
+        };
+    }
+}
+
+export function getUserLogin(email) {
+    console.log("querying")
+    return wixData.query("Members")
+        .eq("email", email)
+        .find()
+        .then((results) => {
+            if (results.items.length > 0) {
+                let nemail = results.items[0].wixEmail;
+                console.log(results.items)
+                console.log(nemail)
+                return wixMembers.authentication.generateSessionToken(nemail)
+                    .then((sessionToken) => {
+                        return {
+                            sessionToken: sessionToken,
+                            approved: true
+                        };
+                    })
+                    .catch((error) => {
+                        return Error(error)
+                    })
+            } else {
+                return Error("Bad Login")
+            }
+        })
+        .catch((err) => {
+            let errorMsg = err;
+            console.log(errorMsg)
+            return Error(errorMsg)
+        });
+}
+
+export function updateMemberPI(toUpdate) {
+    var obj = {}
+    //console.log("memobj b4",toUpdate)
+    if (toUpdate.title) {
+        obj = { ...obj, profile: { title: toUpdate.title } };
+    }
+    if (toUpdate.firstName) {
+        obj = { ...obj, contactDetails: { firstName: toUpdate.firstName } };
+    }
+    if (toUpdate.lastName) {
+        obj = { ...obj, contactDetails: { lastName: toUpdate.lastName } };
+    }
+    if (toUpdate.phoneNumber) {
+        obj = { ...obj, contactDetails: { phones: [toUpdate.phoneNumber] } };
+    }
+    if (toUpdate.email) {
+        obj = { ...obj, loginEmail: toUpdate.email };
+        obj = { ...obj, contactDetails: { emails: [toUpdate.email] } };
+    }
+    //console.log("memobj",obj)
+    return wixMembers.members.updateMember(toUpdate.id, obj)
+        .then((res) => {
+            //console.log("memobjafter", res)
+            return res
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+
+}
+
+export function updateMemberPersonalInfoExpand(toUpdate, obj) {
+    if (toUpdate.title) {
+        obj.contactDetails.title = toUpdate.title
+    }
+    if (toUpdate.firstName) {
+        obj.contactDetails.firstName = toUpdate.firstName
+    }
+    if (toUpdate.lastName) {
+        obj.contactDetails.lastName = toUpdate.lastName
+    }
+    if (toUpdate.birthday) {
+        obj.contactDetails.birthday = toUpdate.birthday
+    }
+    if (toUpdate.gender) {
+        obj.contactDetails.gender = toUpdate.gender
+    }
+    if (toUpdate.phoneCountryCode) {
+        obj.contactDetails.phoneCountryCode = toUpdate.phoneCountryCode
+    }
+    if (toUpdate.phoneNumber) {
+        obj.contactDetails.phoneNumber = toUpdate.phoneNumber
+    }
+    if (toUpdate.email) {
+        obj.email = toUpdate.email
+        return updateFirebaseEmail(obj.email, obj._id)
+            .then((res) => {
+                if (res) {
+                    return wixData.update("Members", obj)
+                        .then((res) => {
+                            if (res) {
+                                return res
+                            }
+                        })
+                        .catch((err) => {
+                            console.log(err)
+                        })
+                } else {
+                    return res
+                }
+            })
+            .catch((error) => {
+                console.log(error)
+            })
+    } else {
+        return wixData.update("Members", obj)
+            .then((res) => {
+
+                return res
+            })
+            .catch((err) => {
+                console.log(err)
+            })
+    }
+
+}
+
+function updateFirebaseEmail(email, uid) {
+    console.log("user", firebaseAuth.currentUser, email)
+    return getAuth()
+        .updateUser(uid, {
+            email: email
+        })
+        .then((userRecord) => {
+            console.log('Successfully updated user', userRecord.toJSON());
+            return true
+        })
+        .catch((error) => {
+            console.log('Error updating user:', error);
+            return Error(error)
+        });
+}
+
+export function addMemberAddress(toUpdate, curr, memDetails) {
+    console.log("memobj b4", toUpdate)
+    var addresses = []
+    addresses = curr
+    var obj = {
+        "addressLine": toUpdate.line1,
+        "addressLine2": toUpdate.line2,
+        "city": toUpdate.city,
+        "subdivision": toUpdate.state,
+        "country": toUpdate.country,
+        "postalCode": toUpdate.postal
+    }
+
+    addresses.push(obj)
+    var member = {
+        "contactDetails": {
+            "addresses": addresses
+        }
+    }
+    console.log("memobj", obj)
+    return wixMembers.members.updateMember(toUpdate.id, member)
+        .then(async (res) => {
+            var index = res.contactDetails.addresses.length - 1
+            toUpdate.addressId = res.contactDetails.addresses[index]._id
+            return updateMemberAddressExpand(toUpdate, memDetails)
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+
+}
+
+export function updateMemberAddressExpand(toUpdate, obj) {
+    if (!obj.contactDetails.addresses.favorite) {
+        obj.contactDetails.addresses.favorite = toUpdate.title
+    } else {
+        if (toUpdate.favorite) {
+            obj.contactDetails.addresses.favorite = toUpdate.title
+        }
+    }
+    var ti = ""
+    ti = toUpdate.title
+    var addy = {
+        [toUpdate.title]: {
+            "firstName": toUpdate.firstName,
+            "lastName": toUpdate.lastName,
+            "line1": toUpdate.line1,
+            "line2": toUpdate.line2,
+            "phoneCountryCode": toUpdate.phoneCountryCode,
+            "phoneNumber": toUpdate.phoneNumber,
+            "city": toUpdate.city,
+            "state": toUpdate.state,
+            "postal": toUpdate.postal,
+            "country": toUpdate.country,
+            "id": toUpdate.addressId
+        }
+    }
+    //var addyTitle = {: addy}
+    obj.contactDetails.addresses.choices.push(addy)
+    console.log(obj)
+
+    return wixData.update("Members", obj)
+        .then((res) => {
+            return res
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+
+}
+
+export function removeMemberAddress(id, memAddyB4, memid, memDetails) {
+    var newAddy = []
+    for (var add in memAddyB4) {
+        if (memAddyB4[add].id !== id) {
+            newAddy.push(memAddyB4[add])
+        }
+    }
+    var member = {
+        "contactDetails": {
+            "addresses": newAddy
+        }
+    }
+    return wixMembers.members.updateMember(memid, member)
+        .then(async (res) => {
+            return removeMemberAddressExtend(id, memDetails)
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+}
+
+export function removeMemberAddressExtend(id, memDetails) {
+    var newAddy = []
+    for (var add in memDetails.contactDetails.addresses.choices) {
+        var key = Object.keys(memDetails.contactDetails.addresses.choices[add])[0]
+        if (memDetails.contactDetails.addresses.choices[add][key].id !== id) {
+            newAddy.push(memDetails.contactDetails.addresses.choices[add])
+        } else {
+            if (key === memDetails.contactDetails.addresses.favorite) {
+                memDetails.contactDetails.addresses.favorite = Object.keys(memDetails.contactDetails.addresses.choices[0])[0]
+            }
+        }
+    }
+    if (newAddy.length === 0) {
+        memDetails.contactDetails.addresses.favorite = undefined
+    }
+    memDetails.contactDetails.addresses.choices = newAddy
+    return wixData.update("Members", memDetails)
+        .then((res) => {
+            return res
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+}
+
+export function updateMemberAddress(memid, memAddyB4, toUpdate, memberDetails) {
+    var newAddy = []
+    for (var add in memAddyB4) {
+        if (memAddyB4[add].id !== toUpdate.addressId) {
+            newAddy.push(memAddyB4[add])
+        } else {
+            var obj = {
+                "addressLine": toUpdate.line1,
+                "addressLine2": toUpdate.line2,
+                "city": toUpdate.city,
+                "subdivision": toUpdate.state,
+                "country": toUpdate.country,
+                "postalCode": toUpdate.postal
+            }
+
+            newAddy.push(obj)
+        }
+    }
+
+    var member = {
+        "contactDetails": {
+            "addresses": newAddy
+        }
+    }
+    return wixMembers.members.updateMember(memid, member)
+        .then(async (res) => {
+            return updateMemberAddressExtend(toUpdate, memberDetails)
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+}
+
+export function updateMemberAddressExtend(toUpdate, memberDetails) {
+
+    if (!memberDetails.contactDetails.addresses.favorite) {
+        memberDetails.contactDetails.addresses.favorite = toUpdate.title
+    } else {
+        if (toUpdate.favorite) {
+            memberDetails.contactDetails.addresses.favorite = toUpdate.title
+        }
+    }
+    var newAddy = []
+    var addyToUpdate = {}
+    for (var add in memberDetails.contactDetails.addresses.choices) {
+        var key = Object.keys(memberDetails.contactDetails.addresses.choices[add])[0]
+        console.log(key, memberDetails.contactDetails.addresses.choices[add][key].id, toUpdate.addressId)
+        if (memberDetails.contactDetails.addresses.choices[add][key].id !== toUpdate.addressId) {
+            newAddy.push(memberDetails.contactDetails.addresses.choices[add])
+        } else {
+            addyToUpdate = {
+                [toUpdate.title]: {
+                    "firstName": toUpdate.firstName,
+                    "lastName": toUpdate.lastName,
+                    "line1": toUpdate.line1,
+                    "line2": toUpdate.line2,
+                    "phoneCountryCode": toUpdate.phoneCountryCode,
+                    "phoneNumber": toUpdate.phoneNumber,
+                    "city": toUpdate.city,
+                    "state": toUpdate.state,
+                    "postal": toUpdate.postal,
+                    "country": toUpdate.country,
+                    "id": toUpdate.addressId
+                }
+            }
+            newAddy.push(addyToUpdate)
+        }
+    }
+    console.log('newAddy', newAddy)
+    memberDetails.contactDetails.addresses.choices = newAddy
+
+    return wixData.update("Members", memberDetails)
+        .then((res) => {
+            return res
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+}
+
+export async function createPIntent(token, cusId, memberDetails) {
+    return await stripe.paymentMethods.create({
+            type: 'card',
+            card: { token: token }
+
+        })
+        .then((res) => {
+            console.log(res)
+            return createSetupIntent(res.id, cusId, memberDetails)
+
+        })
+        .catch((error) => {
+            console.log(error)
+        })
+
+}
+
+async function createSetupIntent(payMethod, cusId, memberDetails) {
+    return await stripe.setupIntents.create({
+            payment_method_types: ['card'],
+            payment_method: payMethod,
+            customer: cusId,
+            confirm: true
+        })
+        .then((res) => {
+            return storeSetup(res, memberDetails)
+        })
+        .catch((error) => {
+            console.log(error)
+        })
+}
+
+async function storeSetup(setup, memberDetails) {
+    var arr = []
+    arr = memberDetails.paymentMethods
+    arr.push(setup.id)
+    memberDetails.paymentMethods = arr
+    return wixData.update("Members", memberDetails)
+        .then((res) => {
+            return res
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+}
+
+export async function retrievePayMethod(stripeId) {
+    return await stripe.setupIntents.retrieve(stripeId)
+        .then((res) => {
+            return getPayMethodDetails(res.payment_method)
+        })
+        .catch((error) => {
+            console.log(error)
+        })
+}
+
+export async function getPayMethodDetails(id, cusId) {
+    return await stripe.paymentMethods
+        .retrieve(id)
+        .then((res) => {
+            return res
+        })
+        .catch((error) => {
+            console.log(error)
+        })
+}
+
+export async function getChargeDetails(id) {
+    return await stripe.charges.retrieve(id)
+        .then((res) => {
+            return res
+        })
+        .catch((error) => {
+            console.log(error)
+        })
+}
+
+export async function removePayMethod(method, memberDetails, setup) {
+    return await stripe.paymentMethods.detach(method)
+        .then((res) => {
+            return removePayMethodExtend(method, memberDetails, setup)
+        })
+        .catch((error) => {
+            console.log(error)
+        })
+
+}
+
+async function removePayMethodExtend(method, memberDetails, setup) {
+    var arr = []
+    for (var i in memberDetails.paymentMethods) {
+        console.log(memberDetails.paymentMethods[i], setup)
+        if (memberDetails.paymentMethods[i] !== setup) {
+            arr.push(memberDetails.paymentMethods[i])
+        }
+    }
+    memberDetails.paymentMethods = arr
+    return wixData.update("Members", memberDetails)
+        .then((res) => {
+            return res
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+
+}
+
+export function updateInterestAndPrivacy(toUpdate, memberDetails) {
+    memberDetails.preferences.interest.menswear = toUpdate.menswear
+    memberDetails.preferences.interest.womenswear = toUpdate.womenswear
+    memberDetails.preferences.dataProfiling = toUpdate.profiling
+    memberDetails.preferences.marketingConsent = toUpdate.marketing
+    return wixData.update("Members", memberDetails)
+        .then((res) => {
+            return res
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+}
+
+export function updateMarketingPreferences(toUpdate, memberDetails) {
+    memberDetails.preferences.marketing.smsMms = toUpdate.smsMms
+    memberDetails.preferences.marketing.newsletterEmail = toUpdate.newsletterEmail
+    memberDetails.preferences.marketing.mail = toUpdate.mail
+    return wixData.update("Members", memberDetails)
+        .then((res) => {
+            return res
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+}
+
+export function updateCountryLanguagePreferences(toUpdate, memberDetails) {
+    memberDetails.preferences.countryPreference = toUpdate.country
+    memberDetails.preferences.languagePreference = toUpdate.language
+    return wixData.update("Members", memberDetails)
+        .then((res) => {
+            return res
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+}
+
+export function changeFirebaseAuth(pw) {
+    return updatePassword(firebaseAuth.currentUser, pw).then(() => {
+        return true
+    }).catch((error) => {
+        console.log(error)
+    });
+}
+
+export async function pWComp(pw, hash) {
+    return await bcrypt.compare(pw, hash)
+        .then((result) => {
+            return result
+        });
+}
+
+export async function encryptPass(pw) {
+    return bcrypt.hash(pw, saltRounds)
+        .then(function (hash) {
+            return { "status": 200, "messege": hash }
+        })
+        .catch((err) => {
+            return { "status": 400, "messege": err }
+        })
+}
+
+export function storeNewAuth(auth, memberDetails) {
+
+    memberDetails.auth = auth
+    return wixData.update("Members", memberDetails)
+        .then((res) => {
+            return res
+        })
+        .catch((err) => {
+            console.log(err)
+        })
+}
+
+function getRandStr(length = 10) {
+    return Math.random().toString(20).substr(2, length)
+}

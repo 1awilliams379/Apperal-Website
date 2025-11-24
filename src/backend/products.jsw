@@ -1,0 +1,63 @@
+import wixPayBackend from 'wix-pay-backend';
+import wixData from 'wix-data';
+
+export function setItemColor(skuu) {
+    if (skuu.slice(skuu.length - 3) === "BLK") {
+        return "Black"
+    }
+    if (skuu.slice(skuu.length - 3) === "CRE") {
+        return "Cream"
+    }
+}
+
+export function setCurrency(currency) {
+    return wixPayBackend.currencies.siteSettings.setCurrencies([{ "code": currency }])
+        .then((res) => {
+            return true
+        })
+        .catch((error) => {
+            console.log(error)
+            return false
+        })
+}
+
+export function addProductToSavedForLater(product, memberId) {
+    return wixData.get("Members", memberId)
+        .then((res) => {
+            let arr = []
+            let obj = {
+                id: product.productId,
+                size: product.size,
+                sku: product.sku,
+                notifications: {
+                    backInStock: false,
+                    lowInStock: false
+                }
+            }
+            arr = res.savedForLater
+            arr.push(obj)
+            wixData.update("Members", res)
+                .then((res) => {
+                    return 200
+                })
+                .catch((error) => {
+                    console.log(error)
+                    return error
+                })
+        })
+        .catch((error) => {
+            console.log(error)
+            return error
+        })
+}
+
+export function getProduct(productId) {
+    return wixData.get("Stores/Products", productId)
+        .then((res) => {
+            return res
+        })
+        .catch((error) => {
+            console.log(error)
+            return error
+        })
+}

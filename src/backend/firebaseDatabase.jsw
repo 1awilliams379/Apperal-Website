@@ -1,0 +1,28 @@
+import { initializeApp } from "firebase/app";
+const firebaseConfig = {
+  apiKey: "AIzaSyDXuFouMhVCavQyzPWk-Al1xu7fSqgc8YQ",
+  authDomain: "relentlessbtl.firebaseapp.com",
+  databaseURL: "https://relentlessbtl-default-rtdb.firebaseio.com",
+  projectId: "relentlessbtl",
+  storageBucket: "relentlessbtl.appspot.com",
+  messagingSenderId: "66156275759",
+  appId: "1:66156275759:web:e995da5cf635aae937beda",
+  measurementId: "G-ZXQYTJWH4H"
+};
+//const database = getDatabase(app);
+// const firebaseConfig = {
+//     apiKey: "AIzaSyDXuFouMhVCavQyzPWk-Al1xu7fSqgc8YQ",
+//     authDomain: "relentlessbtl.firebaseapp.com",
+//     projectId: "relentlessbtl",
+//     storageBucket: "relentlessbtl.appspot.com",
+//     messagingSenderId: "66156275759",
+//     appId: "1:66156275759:web:e995da5cf635aae937beda",
+//     measurementId: "G-ZXQYTJWH4H"
+// };
+const app = initializeApp(firebaseConfig);
+import { getDatabase } from "firebase";
+const database = getDatabase(app);
+
+export function db() {
+
+}
