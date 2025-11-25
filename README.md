@@ -11,5 +11,3 @@ https://github.com/user-attachments/assets/b1fc3704-9713-475b-b65d-3ffd8f7c9b7e
 
 https://github.com/user-attachments/assets/52cf89d7-435f-49ab-b365-255912d0e53a
 
-thub.com/user-attachments/assets/cccc2261-150d-4454-9205-43fd1273e8ab
-https://github.com/1awilliams379/Apperal-Website/releases/download/Videos/IMG_3388.MP4
